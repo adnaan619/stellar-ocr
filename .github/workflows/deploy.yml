@@ -68,7 +68,7 @@ jobs:
           docker build -t test-build backend/ --dry-run || echo "Dockerfile validation completed"
 
   deploy-backend:
-    name: 🚂 Deploy Backend to Railway
+    name: 🚂 Backend Ready for Railway
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
@@ -76,17 +76,11 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
-        
-      - name: 🚂 Deploy to Railway
-        uses: railway-app/railway-deploy@v1
-        with:
-          service: "stellar-ocr-backend"
-          railway-token: ${{ secrets.RAILWAY_TOKEN }}
           
-      - name: ✅ Backend deployment success
+      - name: ✅ Backend ready for deployment
         run: |
-          echo "🎉 Backend deployed successfully to Railway!"
-          echo "🔗 Backend URL will be available at: https://stellar-ocr-backend.railway.app"
+          echo "🎉 Backend is ready for Railway deployment!"
+          echo "🔗 Deploy manually at: https://railway.app"
 
   deploy-frontend:
     name: ⚡ Deploy Frontend to Vercel
