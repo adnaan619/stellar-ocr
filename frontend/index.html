@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar OCR - Professional Text Extractor</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .drop-zone {
+            border: 2px dashed #4b5563;
+            transition: all 0.3s ease-in-out;
+        }
+        .drop-zone.dragover {
+            border-color: #3b82f6;
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-left-color: #fff;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        dark: {
+                            bg: '#111827',
+                            card: '#1f2937',
+                            text: '#d1d5db',
+                            subtle: '#4b5563'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-100 dark:bg-dark-bg text-gray-800 dark:text-dark-text">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        function App() {
+            const [file, setFile] = useState(null);
+            const [text, setText] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [fileInfo, setFileInfo] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [apiUrl, setApiUrl] = useState('');
+            const fileInputRef = useRef(null);
+
+            // Auto-detect API URL based on environment
+            useEffect(() => {
+                const detectApiUrl = () => {
+                    // Check if we're in production (deployed)
+                    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                        // Production: Use Railway backend URL
+                        return 'https://stellar-ocr-backend.up.railway.app';
+                    } else {
+                        // Local development
+                        return 'http://localhost:5001';
+                    }
+                };
+                
+                setApiUrl(detectApiUrl());
+            }, []);
+
+            const handleFileSelect = (selectedFile) => {
+                if (!selectedFile) return;
+                setFile(selectedFile);
+                setError(null);
+
+                const fileType = selectedFile.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Image';
+                setFileInfo({
+                    name: selectedFile.name,
+                    size: (selectedFile.size / 1024 / 1024).toFixed(2),
+                    type: fileType
+                });
+
+                if (fileType === 'Image') {
+                    const reader = new FileReader();
+                    reader.onload = (e) => setPreview(e.target.result);
+                    reader.readAsDataURL(selectedFile);
+                } else {
+                    setPreview(null);
+                }
+            };
+
+            const handleExtract = async () => {
+                if (!file) return;
+                setLoading(true);
+                setError(null);
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const endpoint = fileInfo.type === 'PDF' ? '/pdf-extract' : '/ocr';
+                    console.log(`Making request to: ${apiUrl}${endpoint}`);
+                    
+                    const response = await fetch(`${apiUrl}${endpoint}`, {
+                        method: 'POST',
+                        body: formData,
+                        mode: 'cors'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        setText(data.text);
+                        if(data.pdf_info) {
+                            setFileInfo(prev => ({...prev, ...data.pdf_info}));
+                        }
+                    } else {
+                        setError(data.error || 'An unknown error occurred.');
+                    }
+                } catch (err) {
+                    console.error('Request failed:', err);
+                    setError(`Could not connect to the server at ${apiUrl}. Please check if the backend is running.`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const clearState = () => {
+                setFile(null);
+                setText('');
+                setError(null);
+                setFileInfo(null);
+                setPreview(null);
+                if(fileInputRef.current) fileInputRef.current.value = '';
+            }
+
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
+                    <div className="w-full max-w-6xl mx-auto">
+                        <Header apiUrl={apiUrl} />
+                        <main className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <UploadSection 
+                                handleFileSelect={handleFileSelect} 
+                                fileInputRef={fileInputRef} 
+                                fileInfo={fileInfo}
+                                preview={preview}
+                                clearState={clearState}
+                            />
+                            <ResultsSection 
+                                text={text} 
+                                setText={setText} 
+                                loading={loading}
+                                error={error}
+                                handleExtract={handleExtract}
+                                file={file}
+                                fileInfo={fileInfo}
+                            />
+                        </main>
+                    </div>
+                </div>
+            );
+        }
+
+        const Header = ({ apiUrl }) => (
+            <header className="text-center">
+                <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white">
+                    ⭐ Stellar OCR
+                </h1>
+                <p className="mt-2 text-lg text-gray-600 dark:text-dark-subtle">
+                    Professional text extraction from images and PDFs with AI-powered accuracy
+                </p>
+                <div className="mt-4 text-sm text-gray-500 dark:text-dark-subtle">
+                    <i className="fas fa-server mr-2"></i>
+                    Backend: {apiUrl}
+                </div>
+            </header>
+        );
+
+        const UploadSection = ({ handleFileSelect, fileInputRef, fileInfo, preview, clearState }) => {
+            const [isDragOver, setIsDragOver] = useState(false);
+
+            const onDrop = (e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handleFileSelect(e.dataTransfer.files[0]);
+                }
+            };
+
+            return (
+                <div className="bg-white dark:bg-dark-card p-6 rounded-2xl shadow-lg">
+                    <h2 className="text-2xl font-semibold mb-4">1. Upload Your File</h2>
+                    <div 
+                        className={`drop-zone flex flex-col items-center justify-center p-10 rounded-lg text-center cursor-pointer ${isDragOver ? 'dragover' : ''}`}
+                        onClick={() => fileInputRef.current.click()}
+                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                        onDragLeave={() => setIsDragOver(false)}
+                        onDrop={onDrop}
+                    >
+                        <i className="fas fa-cloud-upload-alt text-5xl text-gray-400 dark:text-dark-subtle"></i>
+                        <p className="mt-4 text-gray-600 dark:text-dark-text">Drag & drop or click to upload</p>
+                        <p className="text-sm text-gray-500 dark:text-dark-subtle">Supports: PDF, PNG, JPG, JPEG</p>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={(e) => handleFileSelect(e.target.files[0])} 
+                            className="hidden" 
+                            accept=".pdf, .png, .jpg, .jpeg" 
+                        />
+                    </div>
+                    {fileInfo && <FileInfo fileInfo={fileInfo} preview={preview} clearState={clearState} />}
+                </div>
+            );
+        }
+
+        const FileInfo = ({ fileInfo, preview, clearState }) => (
+            <div className="mt-6 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="font-semibold">{fileInfo.name}</h3>
+                        <span className="text-sm text-gray-500 dark:text-dark-subtle">{fileInfo.type} - {fileInfo.size} MB</span>
+                        {fileInfo.total_pages && 
+                            <span className="ml-2 text-sm text-blue-500 bg-blue-100 dark:bg-blue-900 dark:text-blue-300 px-2 py-1 rounded-full">{fileInfo.total_pages} Pages</span>
+                        }
+                    </div>
+                    <button onClick={clearState} className="text-gray-400 hover:text-red-500 transition-colors">
+                        <i className="fas fa-times"></i>
+                    </button>
+                </div>
+                {preview && <img src={preview} alt="Preview" className="mt-4 rounded-lg max-h-48 w-auto mx-auto" />}
+            </div>
+        );
+
+        const ResultsSection = ({ text, setText, loading, error, handleExtract, file, fileInfo }) => (
+            <div className="bg-white dark:bg-dark-card p-6 rounded-2xl shadow-lg flex flex-col">
+                <h2 className="text-2xl font-semibold mb-4">2. Get Your Results</h2>
+                <div className="flex-grow flex flex-col">
+                    <textarea 
+                        value={text} 
+                        onChange={(e) => setText(e.target.value)} 
+                        className="w-full flex-grow p-4 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary" 
+                        placeholder="Extracted text will appear here..."
+                        rows="12"
+                    />
+                    {error && (
+                        <div className="mt-2 p-3 bg-red-100 dark:bg-red-900 border border-red-400 text-red-700 dark:text-red-300 rounded">
+                            <i className="fas fa-exclamation-triangle mr-2"></i>
+                            {error}
+                        </div>
+                    )}
+                    <div className="mt-4 flex items-center justify-between">
+                        <button 
+                            onClick={handleExtract} 
+                            disabled={!file || loading} 
+                            className="bg-primary text-white font-bold py-3 px-6 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors flex items-center"
+                        >
+                            {loading ? 
+                                <><div className="w-5 h-5 rounded-full loading-spinner mr-2"></div> Processing...</> : 
+                                <><i className="fas fa-magic mr-2"></i> Extract Text</>
+                            }
+                        </button>
+                        {text && 
+                            <button 
+                                onClick={() => {
+                                    navigator.clipboard.writeText(text);
+                                    alert('Text copied to clipboard!');
+                                }} 
+                                className="text-gray-500 hover:text-primary transition-colors"
+                            >
+                                <i className="fas fa-copy mr-2"></i>Copy to Clipboard
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        );
+        
+        ReactDOM.render(<App />, document.getElementById('root'));
+
+    </script>
+</body>
+</html>

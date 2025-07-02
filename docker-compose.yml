@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # Local Docker Registry for CI/CD
+  registry:
+    image: registry:2
+    ports:
+      - "5555:5000"
+    environment:
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /data
+    volumes:
+      - registry_data:/data
+    restart: unless-stopped
+
+  # Jenkins CI/CD Server
+  jenkins:
+    build: ./jenkins
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      - DOCKER_HOST=tcp://docker:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - docker_certs:/certs/client:ro
+    depends_on:
+      - registry
+    restart: unless-stopped
+
+  # Docker-in-Docker for Jenkins agents
+  docker:
+    image: docker:dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+    volumes:
+      - docker_certs:/certs/client
+      - jenkins_home:/var/jenkins_home
+    ports:
+      - "2376:2376"
+    restart: unless-stopped
+
+  # Application Services
+  ocr-backend:
+    build: ./backend
+    ports:
+      - "5001:5000"
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+
+  ner-service:
+    build: ./ner-service
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+    
+  ocr-frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - ocr-backend
+      - ner-service
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
+  registry_data:
+  docker_certs:

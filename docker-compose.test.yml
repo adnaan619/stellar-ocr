@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  ocr-backend-test:
+    build: ./backend
+    ports:
+      - "5001:5000"
+    environment:
+      - FLASK_ENV=testing
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+  ner-service-test:
+    build: ./ner-service
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_ENV=testing
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

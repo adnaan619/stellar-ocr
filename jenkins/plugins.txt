@@ -1,0 +1,11 @@
+blueocean
+docker-workflow
+git
+workflow-aggregator
+pipeline-stage-view
+configuration-as-code
+credentials-binding
+email-ext
+build-timeout
+timestamper
+ws-cleanup

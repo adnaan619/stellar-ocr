@@ -1,0 +1,12 @@
+[build]
+builder = "dockerfile"
+buildCommand = "docker build -t ocr-backend ./backend"
+
+[deploy]
+startCommand = "cd backend && python app.py"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+
+[variables]
+PORT = "5000"
+FLASK_ENV = "production"

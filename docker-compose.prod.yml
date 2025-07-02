@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  ocr-backend-prod:
+    image: localhost:5000/stellar-ocr-backend:${IMAGE_TAG:-latest}
+    ports:
+      - "5001:5000"
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+    labels:
+      - "environment=production"
+      - "service=ocr-backend"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    
+  ner-service-prod:
+    image: localhost:5000/stellar-ocr-ner:${IMAGE_TAG:-latest}
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+    labels:
+      - "environment=production"
+      - "service=ner"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    
+  frontend-prod:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    labels:
+      - "environment=production"
+      - "service=frontend"

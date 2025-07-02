@@ -1,0 +1,25 @@
+{
+  "builds": [
+    {
+      "src": "frontend/index.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/$1"
+    }
+  ],
+  "functions": {
+    "frontend/index.html": {
+      "maxDuration": 10
+    }
+  },
+  "env": {
+    "API_BASE_URL": "@api_base_url"
+  },
+  "github": {
+    "silent": true
+  }
+}

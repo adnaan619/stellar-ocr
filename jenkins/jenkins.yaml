@@ -1,0 +1,83 @@
+jenkins:
+  systemMessage: "Stellar OCR CI/CD Pipeline - Automated Build & Deployment System"
+  numExecutors: 2
+  mode: NORMAL
+  labelString: "master"
+  
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin123"
+          
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Administer:admin"
+        - "Overall/Read:authenticated"
+        
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: false
+
+  nodes:
+    - permanent:
+        name: "docker-agent"
+        remoteFS: "/home/jenkins/agent"
+        launcher:
+          ssh:
+            host: "jenkins-agent"
+            port: 22
+            credentialsId: "jenkins-agent-key"
+
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "/usr/bin/git"
+        
+  nodejs:
+    installations:
+      - name: "NodeJS-18"
+        properties:
+          - installSource:
+              installers:
+                - nodeJSInstaller:
+                    nodeJSVersion: "18.17.0"
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+    adminAddress: "admin@stellar-ocr.com"
+    
+  globalLibraries:
+    libraries:
+      - name: "stellar-ocr-pipeline"
+        defaultVersion: "main"
+        retriever:
+          modernSCM:
+            scm:
+              git:
+                remote: "https://github.com/your-org/stellar-ocr-pipeline-lib.git"
+
+jobs:
+  - script: |
+      pipelineJob('stellar-ocr-pipeline') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('https://github.com/your-org/stellar-ocr.git')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+        triggers {
+          githubPush()
+        }
+      }
